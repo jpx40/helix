@@ -1,4 +1,4 @@
-use crate::{syntax::TreeCursor, Range, RopeSlice, Selection, Syntax};
+use crate::{Range, RopeSlice, Selection, Syntax};
 
 pub fn expand_selection(syntax: &Syntax, text: RopeSlice, selection: Selection) -> Selection {
     let cursor = &mut syntax.walk();
@@ -25,54 +25,47 @@ pub fn expand_selection(syntax: &Syntax, text: RopeSlice, selection: Selection) 
 }
 
 pub fn shrink_selection(syntax: &Syntax, text: RopeSlice, selection: Selection) -> Selection {
-    select_node_impl(syntax, text, selection, |cursor| {
-        cursor.goto_first_child();
+    selection.transform(move |range| {
+        let (from, to) = range.into_byte_range(text);
+        let mut cursor = syntax.walk();
+        cursor.reset_to_byte_range(from, to);
+
+        if let Some(node) = cursor.first_contained_child(&range, text) {
+            return Range::from_node(node, text, range.direction());
+        }
+
+        range
     })
 }
 
 pub fn select_next_sibling(syntax: &Syntax, text: RopeSlice, selection: Selection) -> Selection {
-    select_node_impl(syntax, text, selection, |cursor| {
+    selection.transform(move |range| {
+        let (from, to) = range.into_byte_range(text);
+        let mut cursor = syntax.walk();
+        cursor.reset_to_byte_range(from, to);
+
         while !cursor.goto_next_sibling() {
             if !cursor.goto_parent() {
-                break;
+                return range;
             }
         }
+
+        Range::from_node(cursor.node(), text, range.direction())
     })
 }
 
 pub fn select_prev_sibling(syntax: &Syntax, text: RopeSlice, selection: Selection) -> Selection {
-    select_node_impl(syntax, text, selection, |cursor| {
-        while !cursor.goto_prev_sibling() {
-            if !cursor.goto_parent() {
-                break;
-            }
-        }
-    })
-}
-
-fn select_node_impl<F>(
-    syntax: &Syntax,
-    text: RopeSlice,
-    selection: Selection,
-    motion: F,
-) -> Selection
-where
-    F: Fn(&mut TreeCursor),
-{
-    let cursor = &mut syntax.walk();
-
-    selection.transform(|range| {
-        let from = text.char_to_byte(range.from());
-        let to = text.char_to_byte(range.to());
-
+    selection.transform(move |range| {
+        let (from, to) = range.into_byte_range(text);
+        let mut cursor = syntax.walk();
         cursor.reset_to_byte_range(from, to);
 
-        motion(cursor);
+        while !cursor.goto_prev_sibling() {
+            if !cursor.goto_parent() {
+                return range;
+            }
+        }
 
-        let node = cursor.node();
-        let from = text.byte_to_char(node.start_byte());
-        let to = text.byte_to_char(node.end_byte());
-
-        Range::new(from, to).with_direction(range.direction())
+        Range::from_node(cursor.node(), text, range.direction())
     })
 }
