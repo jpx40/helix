@@ -242,18 +242,25 @@ fn jump_to_position(
     }
 }
 
-type SymbolPicker = Picker<SymbolInformationItem>;
+type SymbolPicker = Picker<SymbolInformationItem, Option<lsp::Url>>;
 
 fn sym_picker(symbols: Vec<SymbolInformationItem>, current_path: Option<lsp::Url>) -> SymbolPicker {
     // TODO: drop current_path comparison and instead use workspace: bool flag?
-    Picker::new(symbols, current_path, move |cx, item, action| {
-        jump_to_location(
-            cx.editor,
-            &item.symbol.location,
-            item.offset_encoding,
-            action,
-        );
-    })
+    let columns = vec![];
+    Picker::new(
+        columns,
+        0,
+        symbols,
+        current_path,
+        move |cx, item, action| {
+            jump_to_location(
+                cx.editor,
+                &item.symbol.location,
+                item.offset_encoding,
+                action,
+            );
+        },
+    )
     .with_preview(move |_editor, item| Some(location_to_file_location(&item.symbol.location)))
     .truncate_start(false)
 }
@@ -264,11 +271,13 @@ enum DiagnosticsFormat {
     HideSourcePath,
 }
 
+type DiagnosticsPicker = Picker<PickerDiagnostic, (DiagnosticStyles, DiagnosticsFormat)>;
+
 fn diag_picker(
     cx: &Context,
     diagnostics: BTreeMap<PathBuf, Vec<(lsp::Diagnostic, usize)>>,
     format: DiagnosticsFormat,
-) -> Picker<PickerDiagnostic> {
+) -> DiagnosticsPicker {
     // TODO: drop current_path comparison and instead use workspace: bool flag?
 
     // flatten the map to a vec of (url, diag) pairs
@@ -294,7 +303,10 @@ fn diag_picker(
         error: cx.editor.theme.get("error"),
     };
 
+    let columns = vec![];
     Picker::new(
+        columns,
+        0,
         flat_diag,
         (styles, format),
         move |cx,
@@ -822,7 +834,8 @@ fn goto_impl(
         }
         [] => unreachable!("`locations` should be non-empty for `goto_impl`"),
         _locations => {
-            let picker = Picker::new(locations, cwdir, move |cx, location, action| {
+            let columns = vec![];
+            let picker = Picker::new(columns, 0, locations, cwdir, move |cx, location, action| {
                 jump_to_location(cx.editor, location, offset_encoding, action)
             })
             .with_preview(move |_editor, location| Some(location_to_file_location(location)));
