@@ -1,4 +1,5 @@
 mod handlers;
+mod query;
 
 use crate::{
     alt,
@@ -227,7 +228,7 @@ pub struct Picker<T: 'static + Send + Sync, D: 'static> {
 
     cursor: u32,
     prompt: Prompt,
-    previous_pattern: String,
+    query: query::PickerQuery,
 
     /// Whether to show the preview panel (default true)
     show_preview: bool,
@@ -345,7 +346,7 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
             shutdown,
             cursor: 0,
             prompt,
-            previous_pattern: String::new(),
+            query: query::PickerQuery::default(),
             truncate_start: true,
             show_preview: true,
             callback_fn: Box::new(callback_fn),
@@ -447,6 +448,13 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
             .map(|item| item.data)
     }
 
+    fn primary_query(&self) -> Arc<str> {
+        self.query
+            .get(&self.column_names[self.primary_column])
+            .cloned()
+            .unwrap_or_else(|| "".into())
+    }
+
     fn header_height(&self) -> u16 {
         if self.columns.len() > 1 {
             1
@@ -467,16 +475,31 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
     }
 
     fn handle_prompt_change(&mut self) {
-        let pattern = self.prompt.line();
         // TODO: better track how the pattern has changed
-        if pattern != &self.previous_pattern {
-            self.matcher.pattern.reparse(
-                0,
-                pattern,
-                CaseMatching::Smart,
-                pattern.starts_with(&self.previous_pattern),
-            );
-            self.previous_pattern = pattern.clone();
+        let line = self.prompt.line();
+        let new_query = query::parse(&self.column_names, self.primary_column, line);
+        if new_query != self.query {
+            for (i, column) in self
+                .columns
+                .iter()
+                .filter(|column| column.filter)
+                .enumerate()
+            {
+                let pattern: &str = new_query
+                    .get(column.name.as_str())
+                    .map(|f| &**f)
+                    .unwrap_or("");
+                let append = self
+                    .query
+                    .get(column.name.as_str())
+                    .map(|old_pattern| pattern.starts_with(&**old_pattern))
+                    .unwrap_or(false);
+
+                self.matcher
+                    .pattern
+                    .reparse(i, pattern, CaseMatching::Smart, append);
+            }
+            self.query = new_query;
         }
     }
 
