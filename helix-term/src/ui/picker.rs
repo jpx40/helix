@@ -15,7 +15,7 @@ use crate::{
 };
 use futures_util::future::BoxFuture;
 use helix_event::AsyncHook;
-use nucleo::pattern::CaseMatching;
+use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::{Config, Nucleo, Utf32String};
 use thiserror::Error;
 use tokio::sync::mpsc::Sender;
@@ -502,9 +502,13 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
                     .map(|old_pattern| pattern.starts_with(&**old_pattern))
                     .unwrap_or(false);
 
-                self.matcher
-                    .pattern
-                    .reparse(i, pattern, CaseMatching::Smart, append);
+                self.matcher.pattern.reparse(
+                    i,
+                    pattern,
+                    CaseMatching::Smart,
+                    Normalization::Smart,
+                    append,
+                );
             }
             self.query = new_query;
         }
