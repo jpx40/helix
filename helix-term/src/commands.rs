@@ -2205,15 +2205,13 @@ fn global_search(cx: &mut Context) {
         path: PathBuf,
         /// 0 indexed lines
         line_num: usize,
-        line_content: String,
     }
 
     impl FileResult {
-        fn new(path: &Path, line_num: usize, line_content: String) -> Self {
+        fn new(path: &Path, line_num: usize) -> Self {
             Self {
                 path: path.to_path_buf(),
                 line_num,
-                line_content,
             }
         }
     }
@@ -2236,10 +2234,7 @@ fn global_search(cx: &mut Context) {
                 .into_owned()
                 .into()
         }),
-        PickerColumn::new("contents", |item: &FileResult, _| {
-            item.line_content.as_str().into()
-        })
-        .without_filtering(),
+        PickerColumn::hidden("contents"),
     ];
 
     let get_files = |query: &str,
@@ -2319,13 +2314,9 @@ fn global_search(cx: &mut Context) {
                         };
 
                         let mut stop = false;
-                        let sink = sinks::UTF8(|line_num, line_content| {
+                        let sink = sinks::UTF8(|line_num, _line_content| {
                             stop = injector
-                                .push(FileResult::new(
-                                    entry.path(),
-                                    line_num as usize - 1,
-                                    line_content.to_string(),
-                                ))
+                                .push(FileResult::new(entry.path(), line_num as usize - 1))
                                 .is_err();
 
                             Ok(!stop)

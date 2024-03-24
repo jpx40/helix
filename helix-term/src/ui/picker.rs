@@ -190,6 +190,7 @@ pub struct Column<T, D> {
     /// `DynamicPicker` uses this so that the dynamic column (for example regex in
     /// global search) is not used for filtering twice.
     filter: bool,
+    hidden: bool,
 }
 
 impl<T, D> Column<T, D> {
@@ -198,6 +199,19 @@ impl<T, D> Column<T, D> {
             name: name.into(),
             format,
             filter: true,
+            hidden: false,
+        }
+    }
+
+    /// A column which does not display any contents
+    pub fn hidden(name: impl Into<String>) -> Self {
+        let format = |_: &T, _: &D| unreachable!();
+
+        Self {
+            name: name.into(),
+            format,
+            filter: false,
+            hidden: true,
         }
     }
 
@@ -674,6 +688,10 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
             let mut matcher_index = 0;
 
             Row::new(self.columns.iter().map(|column| {
+                if column.hidden {
+                    return Cell::default();
+                }
+
                 let Some(Constraint::Length(max_width)) = widths.next() else {
                     unreachable!();
                 };
@@ -753,10 +771,13 @@ impl<T: 'static + Send + Sync, D: 'static + Send + Sync> Picker<T, D> {
         if self.columns.len() > 1 {
             let header_style = cx.editor.theme.get("ui.picker.header");
 
-            table =
-                table.header(Row::new(self.columns.iter().map(|column| {
+            table = table.header(Row::new(self.columns.iter().map(|column| {
+                if column.hidden {
+                    Cell::default()
+                } else {
                     Cell::from(Span::styled(column.name.as_str(), header_style))
-                })));
+                }
+            })));
         }
 
         use tui::widgets::TableState;
