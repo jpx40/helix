@@ -1657,6 +1657,7 @@ pub fn scroll(cx: &mut Context, offset: usize, direction: Direction, sync_cursor
     let viewport = view.inner_area(doc);
     let text_fmt = doc.text_format(viewport.width, None);
     let mut annotations = view.text_annotations(&*doc, None);
+
     (view.offset.anchor, view.offset.vertical_offset) = char_idx_at_visual_offset(
         doc_text,
         view.offset.anchor,
@@ -1686,7 +1687,10 @@ pub fn scroll(cx: &mut Context, offset: usize, direction: Direction, sync_cursor
                 &mut annotations,
             )
         });
+
+        drop(annotations);
         doc.set_selection(view.id, selection);
+
         return;
     }
 
